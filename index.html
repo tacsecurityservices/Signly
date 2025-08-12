@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Signly</title>
-     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%234F46E5%22 /><text x=%2250%22 y=%2275%22 font-size=%2250%22 font-family=%22sans-serif%22 font-weight=%22bold%22 text-anchor=%22middle%22 fill=%22%23FFFFFF%22>S</text></svg>">
+    <!-- Favicon placeholder using inline SVG for a cleaner look -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%234F46E5%22 /><text x=%2250%22 y=%2275%22 font-size=%2250%22 font-family=%22sans-serif%22 font-weight=%22bold%22 text-anchor=%22middle%22 fill=%22%23FFFFFF%22>S</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -217,7 +218,7 @@
     
     <!-- Footer Section -->
     <footer class="bg-gray-200 p-4 mt-8 text-center text-sm text-gray-600 print:hidden">
-        <p>&copy; 2025 Developed By Tac Cybersevices | Signly. All Rights Reserved.</p>
+        <p>&copy; 2025 Developed By Tac Cyberservices | Signly. All Rights Reserved.</p>
     </footer>
 
     <script>
@@ -422,9 +423,17 @@
         };
 
         // --- Event Listener Functions ---
-
+        
+        <!-- BUG FIX: This section was updated to prevent the page from re-rendering on every keystroke. The old code caused the input field to lose focus, making it impossible to type more than one word at a time. The new code now updates the data model directly without re-rendering the entire UI. It also removes and re-adds listeners to prevent duplicates. -->
         // Function to handle changes in line item inputs
         const addItemChangeListeners = () => {
+            // Remove previous listeners to avoid duplicates
+            lineItemsContainer.querySelectorAll('input').forEach(input => {
+                const oldInput = input.cloneNode(true);
+                input.parentNode.replaceChild(oldInput, input);
+            });
+
+            // Add new listeners
             lineItemsContainer.querySelectorAll('input').forEach(input => {
                 input.addEventListener('input', (e) => {
                     const id = parseInt(e.target.dataset.id);
@@ -436,17 +445,16 @@
                         if (field === 'description') {
                             item[field] = value;
                         } else if (field === 'amount') {
-                            // If amount is edited, set the manual flag to true
                             item.isManualAmount = true;
                             item.amount = parseFloat(value) || 0;
+                            updateTotals(); // Recalculate totals immediately for amount changes
                         } else {
                             item[field] = parseFloat(value) || 0;
-                            // If quantity or rate changes, revert to automatic calculation
                             item.isManualAmount = false;
+                            updateTotals(); // Recalculate totals immediately for quantity/rate changes
                         }
                     }
-                    renderLineItems();
-                    updateTotals();
+                    saveToLocalStorage();
                 });
             });
         };
