@@ -31,8 +31,9 @@
                 display: none !important;
             }
             .invoice-container {
-                box-shadow: none;
-                border: none;
+                /* Removed border and box-shadow for printing */
+                box-shadow: none !important;
+                border: none !important;
                 padding: 0;
                 margin: 0;
                 font-size: 12px; /* Smaller base font for the PDF */
@@ -564,31 +565,57 @@
             renderLineItems();
             updateTotals();
         });
+        
+        // Listener for all main form fields
+        const allFormInputs = [
+            documentNumberInput,
+            documentDateInput,
+            dueDateInput,
+            companyNameInput,
+            companyAddressInput,
+            companyPhoneInput,
+            companyEmailInput,
+            clientNameInput,
+            clientAddressInput,
+            clientEmailInput
+        ];
 
-        document.getElementById('save-document-btn').addEventListener('click', () => {
-            const documentToSave = { ...invoice, logoUrl: invoice.logoUrl };
-            savedDocuments.push(documentToSave);
-            localStorage.setItem('savedDocuments', JSON.stringify(savedDocuments));
-            renderSavedDocuments();
-            // Using a custom modal instead of alert()
-            const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50';
-            modal.innerHTML = `
-                <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full text-center">
-                    <p class="text-lg font-semibold mb-4">${invoice.documentType} ${invoice.documentNumber} has been saved!</p>
-                    <button id="close-modal-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">OK</button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            document.getElementById('close-modal-btn').addEventListener('click', () => {
-                document.body.removeChild(modal);
+        allFormInputs.forEach(input => {
+            input.addEventListener('input', (e) => {
+                switch(e.target.id) {
+                    case 'document-number-input':
+                        invoice.documentNumber = e.target.value;
+                        break;
+                    case 'document-date-input':
+                        invoice.documentDate = e.target.value;
+                        break;
+                    case 'due-date-input':
+                        invoice.dueDate = e.target.value;
+                        break;
+                    case 'company-name-input':
+                        invoice.companyName = e.target.value;
+                        break;
+                    case 'company-address-input':
+                        invoice.companyAddress = e.target.value;
+                        break;
+                    case 'company-phone-input':
+                        invoice.companyPhone = e.target.value;
+                        break;
+                    case 'company-email-input':
+                        invoice.companyEmail = e.target.value;
+                        break;
+                    case 'client-name-input':
+                        invoice.clientName = e.target.value;
+                        break;
+                    case 'client-address-input':
+                        invoice.clientAddress = e.target.value;
+                        break;
+                    case 'client-email-input':
+                        invoice.clientEmail = e.target.value;
+                        break;
+                }
+                saveToLocalStorage();
             });
-        });
-
-        toggleSavedListBtn.addEventListener('click', () => {
-            savedDocumentsContainer.classList.toggle('hidden');
-            const isHidden = savedDocumentsContainer.classList.contains('hidden');
-            toggleSavedListBtn.querySelector('span').textContent = isHidden ? 'View Saved Documents' : 'Hide Saved Documents';
         });
 
         logoUploadInput.addEventListener('change', (e) => {
@@ -597,49 +624,81 @@
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     invoice.logoUrl = event.target.result;
-                    updateUI(); // This will handle setting the logo and removing the placeholder attribute
+                    logoPreview.src = invoice.logoUrl;
+                    logoPreview.removeAttribute('data-placeholder');
+                    uploadControls.classList.add('hidden');
                     saveToLocalStorage();
                 };
                 reader.readAsDataURL(file);
             }
         });
-        
-        // This is the new PDF generation logic
-        exportPdfBtn.addEventListener('click', () => {
-            const element = document.getElementById('invoice-container');
-            const options = {
-                margin: 10,
-                filename: `${invoice.documentType}_${invoice.documentNumber}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
 
-            // Check if the logo is the placeholder and hide elements
-            const isPlaceholderLogo = logoPreview.getAttribute('data-placeholder') !== null;
-            if (isPlaceholderLogo) {
-                // We're using direct style manipulation for a more reliable hide/show
-                uploadControls.style.display = 'none';
-                logoPreview.style.display = 'none';
+        document.getElementById('save-document-btn').addEventListener('click', () => {
+            // Check if the current document has already been saved to prevent duplicates
+            const isSaved = savedDocuments.some(doc => 
+                doc.documentType === invoice.documentType && doc.documentNumber === invoice.documentNumber
+            );
+            
+            if (!isSaved) {
+                // Create a deep copy of the current invoice object before saving
+                const newDoc = JSON.parse(JSON.stringify(invoice));
+                savedDocuments.push(newDoc);
+                localStorage.setItem('savedDocuments', JSON.stringify(savedDocuments));
+                renderSavedDocuments();
+                // Show a confirmation message (using a simple visual effect instead of alert)
+                const saveButton = document.getElementById('save-document-btn');
+                const originalText = saveButton.innerHTML;
+                saveButton.innerHTML = '<i data-lucide="check" class="h-5 w-5"></i><span>Saved!</span>';
+                saveButton.classList.remove('bg-green-500');
+                saveButton.classList.add('bg-gray-400');
+                setTimeout(() => {
+                    saveButton.innerHTML = originalText;
+                    saveButton.classList.remove('bg-gray-400');
+                    saveButton.classList.add('bg-green-500');
+                    lucide.createIcons();
+                }, 2000);
+            } else {
+                // Handle case where document is already saved
+                const saveButton = document.getElementById('save-document-btn');
+                const originalText = saveButton.innerHTML;
+                saveButton.innerHTML = '<i data-lucide="info" class="h-5 w-5"></i><span>Already Saved</span>';
+                saveButton.classList.remove('bg-green-500');
+                saveButton.classList.add('bg-orange-500');
+                setTimeout(() => {
+                    saveButton.innerHTML = originalText;
+                    saveButton.classList.remove('bg-orange-500');
+                    saveButton.classList.add('bg-green-500');
+                    lucide.createIcons();
+                }, 2000);
             }
-
-            // Generate the PDF
-            html2pdf().set(options).from(element).save().then(() => {
-                // After the PDF is saved, remove the hide styles to make it visible again
-                if (isPlaceholderLogo) {
-                    uploadControls.style.display = '';
-                    logoPreview.style.display = '';
-                }
-            });
         });
 
-        // Event listeners for all form inputs
-        [documentNumberInput, documentDateInput, dueDateInput, companyNameInput, companyAddressInput, companyPhoneInput, companyEmailInput, clientNameInput, clientAddressInput, clientEmailInput].forEach(input => {
-            input.addEventListener('input', (e) => {
-                const field = e.target.id.replace('-input', '');
-                invoice[field] = e.target.value;
-                saveToLocalStorage();
-            });
+        toggleSavedListBtn.addEventListener('click', () => {
+            const isHidden = savedDocumentsContainer.classList.toggle('hidden');
+            if (isHidden) {
+                toggleSavedListBtn.querySelector('span').textContent = 'View Saved Documents';
+            } else {
+                toggleSavedListBtn.querySelector('span').textContent = 'Hide Saved Documents';
+                renderSavedDocuments();
+            }
+        });
+
+        exportPdfBtn.addEventListener('click', () => {
+            const element = document.getElementById('invoice-container');
+            const documentTitle = `${invoice.documentType}-${invoice.documentNumber}`;
+            
+            const options = {
+                // Changed margin to 0 to remove the default border
+                margin: 0,
+                filename: `${documentTitle}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                // Increased scale and DPI for higher resolution
+                html2canvas: { scale: 3, logging: true, dpi: 300, letterRendering: true }, 
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+                pagebreak: { avoid: ['#line-items-container'] } // Avoid breaking the line items table
+            };
+
+            html2pdf().from(element).set(options).save();
         });
     </script>
 </body>
