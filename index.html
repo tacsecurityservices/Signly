@@ -100,6 +100,7 @@
                     <div id="logo-section" class="relative group cursor-pointer border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-indigo-400 transition-all">
                         <img id="logo-preview" src="https://placehold.co/200x80/f8fafc/64748b?text=Your+Logo" class="max-h-24 w-auto object-contain mb-2" />
                         <input type="file" id="logo-upload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" />
+                        <p class="text-[10px] text-gray-400 text-center uppercase tracking-wider print:hidden">Click to change logo</p>
                     </div>
                 </div>
 
@@ -216,6 +217,19 @@
         }
 
         function hideStatus() { $('status-bar').classList.add('hidden'); }
+
+        // Logo Upload Handler
+        $('logo-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (re) => {
+                    state.doc.logo = re.target.result;
+                    $('logo-preview').src = re.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
 
         async function extractWithVision(base64Image) {
             showStatus("AI is reading the document...");
