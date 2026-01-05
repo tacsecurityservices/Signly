@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signly | Document Generator</title>
+    <title>Signly | AI-Powered Document Generator</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%234F46E5%22 /><text x=%2250%22 y=%2275%22 font-size=%2250%22 font-family=%22sans-serif%22 font-weight=%22bold%22 text-anchor=%22middle%22 fill=%22%23FFFFFF%22>S</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,6 +23,16 @@
         }
         .line-item-grid { display: grid; grid-template-columns: 1fr 80px 120px 120px 40px; gap: 12px; align-items: end; }
         @media (max-width: 768px) { .line-item-grid { grid-template-columns: 1fr; gap: 8px; } }
+        
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen antialiased text-gray-800 pb-20">
@@ -43,24 +53,29 @@
                 <button onclick="createNewDoc('Purchase Order')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-all font-medium">
                     <i data-lucide="shopping-cart" class="h-4 w-4"></i> PO
                 </button>
-                <button onclick="createNewDoc('Delivery Note')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-all font-medium">
-                    <i data-lucide="package" class="h-4 w-4"></i> DN
-                </button>
             </div>
         </header>
 
+        <!-- Status Notification -->
+        <div id="status-bar" class="hidden mb-4 p-4 rounded-xl flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div id="status-loader" class="loader"></div>
+                <span id="status-msg" class="text-sm font-medium">Processing...</span>
+            </div>
+        </div>
+
         <div class="flex flex-wrap gap-3 justify-center mb-8 print:hidden">
             <button id="import-po-btn" class="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl shadow-md hover:bg-purple-700 transition-all">
-                <i data-lucide="file-up" class="h-5 w-5"></i>
-                <span>Import PO PDF</span>
+                <i data-lucide="sparkles" class="h-5 w-5"></i>
+                <span>AI Import (PDF/Scan)</span>
             </button>
             <button id="toggle-saved-list-btn" class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all">
                 <i data-lucide="layers" class="h-5 w-5"></i>
-                <span>Saved Docs</span>
+                <span>History</span>
             </button>
             <button id="save-document-btn" class="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl shadow-md hover:bg-emerald-700 transition-all">
                 <i data-lucide="save" class="h-5 w-5"></i>
-                <span>Save Current</span>
+                <span>Save</span>
             </button>
             <button id="export-pdf-btn" class="flex items-center gap-2 px-5 py-2.5 bg-gray-800 text-white rounded-xl shadow-md hover:bg-black transition-all">
                 <i data-lucide="download" class="h-5 w-5"></i>
@@ -68,28 +83,22 @@
             </button>
         </div>
 
-        <input type="file" id="po-upload-input" accept="application/pdf" class="hidden" />
+        <input type="file" id="po-upload-input" accept="application/pdf,image/*" class="hidden" />
 
         <div id="saved-documents-container" class="bg-white p-6 rounded-2xl shadow-xl border border-gray-200 mb-8 print:hidden hidden">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">Recent Documents</h2>
-                <button onclick="clearAllSaved()" class="text-red-500 text-sm hover:underline">Clear History</button>
+                <button onclick="clearAllSaved()" class="text-red-500 text-sm hover:underline">Clear</button>
             </div>
             <div id="saved-list" class="space-y-2 max-h-64 overflow-y-auto pr-2"></div>
         </div>
 
-        <!-- Debug Console (Hidden by default, useful if import fails) -->
-        <div id="debug-console" class="hidden bg-black text-green-400 p-4 rounded-lg mb-8 text-xs font-mono max-h-40 overflow-auto">
-            <p>-- PDF PARSE DEBUG --</p>
-            <div id="debug-text"></div>
-        </div>
-
-        <div id="invoice-container" class="bg-white p-8 md:p-16 rounded-2xl shadow-2xl border border-gray-100 invoice-container">
+        <div id="invoice-container" class="bg-white p-8 md:p-16 rounded-2xl shadow-2xl border border-gray-100">
+            <!-- Document Header -->
             <div class="flex flex-col md:flex-row justify-between mb-12 gap-8">
                 <div class="w-full md:w-1/3">
                     <div id="logo-section" class="relative group cursor-pointer border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-indigo-400 transition-all">
                         <img id="logo-preview" src="https://placehold.co/200x80/f8fafc/64748b?text=Your+Logo" class="max-h-24 w-auto object-contain mb-2" />
-                        <p class="text-xs text-gray-400 text-center group-hover:text-indigo-500 print:hidden">Click to change logo</p>
                         <input type="file" id="logo-upload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" />
                     </div>
                 </div>
@@ -99,15 +108,11 @@
                     <div class="space-y-1 text-sm font-medium text-gray-600">
                         <div class="flex justify-end items-center gap-2">
                             <span id="document-number-label">INV #</span>
-                            <input type="text" id="document-number-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1" placeholder="AUTO">
+                            <input type="text" id="document-number-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1">
                         </div>
                         <div class="flex justify-end items-center gap-2">
                             <span>Date:</span>
                             <input type="date" id="document-date-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1">
-                        </div>
-                        <div class="flex justify-end items-center gap-2" id="due-date-container">
-                            <span>Due Date:</span>
-                            <input type="date" id="due-date-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1">
                         </div>
                     </div>
                 </div>
@@ -117,13 +122,11 @@
                 <div>
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">From</h3>
                     <div class="flex flex-col space-y-2">
-                        <input type="text" id="company-name-input" placeholder="Your Business Name" class="text-lg font-bold outline-none border-b border-transparent focus:border-gray-200">
-                        <textarea id="company-address-input" placeholder="Address line 1&#10;City, Postcode" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200 resize-none" rows="2"></textarea>
-                        <input type="text" id="company-phone-input" placeholder="Contact Number" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200">
-                        <input type="text" id="company-email-input" placeholder="Email Address" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200">
-                        <div class="flex items-center gap-2 pt-2 border-t border-gray-50 mt-1">
-                            <span class="text-[10px] font-bold text-gray-400 uppercase">Acc #:</span>
-                            <input type="text" id="account-number-input" placeholder="Bank Account Number" class="text-xs font-medium text-indigo-600 outline-none bg-indigo-50/50 px-2 py-1 rounded">
+                        <input type="text" id="company-name-input" placeholder="Your Business" class="text-lg font-bold outline-none border-b border-transparent focus:border-gray-200">
+                        <textarea id="company-address-input" placeholder="Address" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200 resize-none" rows="2"></textarea>
+                        <div class="flex items-center gap-1 text-gray-500 text-sm">
+                            <i data-lucide="phone" class="h-3 w-3"></i>
+                            <input type="text" id="company-phone-input" placeholder="Phone Number" class="w-full outline-none border-b border-transparent focus:border-gray-200">
                         </div>
                     </div>
                 </div>
@@ -131,8 +134,11 @@
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Bill To</h3>
                     <div class="flex flex-col space-y-2">
                         <input type="text" id="client-name-input" placeholder="Client Name" class="text-lg font-bold outline-none border-b border-transparent focus:border-gray-200">
-                        <textarea id="client-address-input" placeholder="Client Address&#10;City, Postcode" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200 resize-none" rows="2"></textarea>
-                        <input type="text" id="client-email-input" placeholder="Client Email" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200">
+                        <textarea id="client-address-input" placeholder="Client Address" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200 resize-none" rows="2"></textarea>
+                        <div class="flex items-center gap-1 text-gray-500 text-sm">
+                            <i data-lucide="phone" class="h-3 w-3"></i>
+                            <input type="text" id="client-phone-input" placeholder="Phone Number" class="w-full outline-none border-b border-transparent focus:border-gray-200">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -147,31 +153,29 @@
 
             <div id="line-items-container" class="space-y-4 mb-8"></div>
 
-            <button id="add-item-btn" class="print:hidden flex items-center gap-2 text-indigo-600 font-bold text-sm hover:text-indigo-800 transition-colors">
+            <button id="add-item-btn" class="print:hidden flex items-center gap-2 text-indigo-600 font-bold text-sm hover:text-indigo-800">
                 <i data-lucide="plus-circle" class="h-4 w-4"></i> Add Line Item
             </button>
 
-            <div class="mt-12 flex justify-end">
-                <div class="w-full md:w-64 space-y-3">
-                    <div class="flex justify-between text-gray-600">
-                        <span>Subtotal</span>
-                        <span id="subtotal-amount">R 0.00</span>
+            <div class="mt-12 flex justify-between items-end border-t-2 border-gray-50 pt-8">
+                <div class="w-1/2">
+                    <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Banking Details</h3>
+                    <div class="bg-gray-50 p-4 rounded-xl space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase w-20">Account No:</span>
+                            <input type="text" id="account-number-input" placeholder="Enter Acc Number" class="text-xs font-semibold text-gray-800 outline-none bg-transparent w-full">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase w-20">Bank/Branch:</span>
+                            <input type="text" id="bank-name-input" placeholder="Bank Name / Code" class="text-xs font-semibold text-gray-800 outline-none bg-transparent w-full">
+                        </div>
                     </div>
+                </div>
+                <div class="w-full md:w-64 space-y-3">
                     <div class="flex justify-between items-center text-2xl font-black text-gray-900 border-t-4 border-indigo-600 pt-3">
                         <span>TOTAL</span>
                         <span id="total-amount">R 0.00</span>
                     </div>
-                </div>
-            </div>
-
-            <div class="mt-20 grid grid-cols-1 md:grid-cols-2 gap-16">
-                <div>
-                    <div class="signature-line w-full h-1 bg-gray-200 mb-4"></div>
-                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Authorized Signature</p>
-                </div>
-                <div>
-                    <div class="signature-line w-full h-1 bg-gray-200 mb-4"></div>
-                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Client Acknowledgement</p>
                 </div>
             </div>
 
@@ -182,40 +186,130 @@
     </div>
 
     <script>
+        const apiKey = ""; // Provided by environment
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        
+
         let state = {
             doc: {
                 type: 'Invoice',
                 number: '',
                 date: new Date().toISOString().split('T')[0],
-                dueDate: '',
-                company: { name: '', address: '', phone: '', email: '', acc: '' },
-                client: { name: '', address: '', email: '' },
+                company: { name: '', address: '', phone: '', acc: '', bank: '' },
+                client: { name: '', address: '', phone: '' },
                 items: [{ id: Date.now(), desc: '', qty: 1, rate: 0 }],
                 logo: null
             },
             history: JSON.parse(localStorage.getItem('signly_history') || '[]'),
-            counters: JSON.parse(localStorage.getItem('signly_counters') || '{"Invoice": 0, "Purchase Order": 0, "Delivery Note": 0}')
         };
 
         const $ = (id) => document.getElementById(id);
         const container = $('line-items-container');
 
+        function showStatus(msg, isError = false) {
+            const bar = $('status-bar');
+            bar.classList.remove('hidden', 'bg-red-50', 'bg-indigo-50');
+            bar.classList.add(isError ? 'bg-red-50' : 'bg-indigo-50');
+            $('status-msg').textContent = msg;
+            $('status-msg').className = isError ? 'text-red-700 font-medium' : 'text-indigo-700 font-medium';
+            if(isError) $('status-loader').classList.add('hidden');
+            else $('status-loader').classList.remove('hidden');
+        }
+
+        function hideStatus() { $('status-bar').classList.add('hidden'); }
+
+        async function extractWithVision(base64Image) {
+            showStatus("AI is reading the document...");
+            
+            const systemPrompt = "You are a specialized PO extraction tool. Look at the image and extract: PO Number, Client Name, Client Phone, and a table of items (description, quantity, unit price). Respond ONLY in valid JSON format with keys: poNumber, clientName, clientPhone, items (array of {desc, qty, rate}). Use numbers for qty and rate.";
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: "Extract the data from this South African PO." },
+                                { inlineData: { mimeType: "image/png", data: base64Image.split(',')[1] } }
+                            ]
+                        }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+
+                const result = await response.json();
+                const data = JSON.parse(result.candidates[0].content.parts[0].text);
+                
+                if (data.poNumber) state.doc.number = "INV-REF-" + data.poNumber;
+                if (data.clientName) state.doc.client.name = data.clientName;
+                if (data.clientPhone) state.doc.client.phone = data.clientPhone;
+                if (data.items && data.items.length > 0) {
+                    state.doc.items = data.items.map(item => ({
+                        id: Date.now() + Math.random(),
+                        desc: item.desc || "Item",
+                        qty: parseFloat(item.qty) || 1,
+                        rate: parseFloat(item.rate) || 0
+                    }));
+                }
+                
+                hideStatus();
+                render();
+            } catch (err) {
+                showStatus("AI Extraction failed. Please try a clearer scan or enter manually.", true);
+            }
+        }
+
+        $('import-po-btn').onclick = () => $('po-upload-input').click();
+        
+        $('po-upload-input').onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.type.includes('image')) {
+                const reader = new FileReader();
+                reader.onload = (re) => extractWithVision(re.target.result);
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            try {
+                showStatus("Converting PDF for AI Vision...");
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const page = await pdf.getPage(1);
+                
+                const viewport = page.getViewport({ scale: 2 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                const base64Image = canvas.toDataURL('image/png');
+                
+                extractWithVision(base64Image);
+            } catch (err) {
+                showStatus("Error opening PDF.", true);
+            }
+        };
+
         function render() {
             $('document-type-heading').textContent = state.doc.type;
-            $('document-number-label').textContent = `${state.doc.type === 'Invoice' ? 'INV' : state.doc.type === 'Purchase Order' ? 'PO' : 'DN'} #`;
             $('document-number-input').value = state.doc.number;
             $('document-date-input').value = state.doc.date;
-            $('due-date-input').value = state.doc.dueDate;
+            
             $('company-name-input').value = state.doc.company.name;
             $('company-address-input').value = state.doc.company.address;
-            $('company-phone-input').value = state.doc.company.phone;
-            $('company-email-input').value = state.doc.company.email;
-            $('account-number-input').value = state.doc.company.acc || '';
+            $('company-phone-input').value = state.doc.company.phone || '';
+            
+            $('account-number-input').value = state.doc.company.acc;
+            $('bank-name-input').value = state.doc.company.bank || '';
+            
             $('client-name-input').value = state.doc.client.name;
             $('client-address-input').value = state.doc.client.address;
-            $('client-email-input').value = state.doc.client.email;
+            $('client-phone-input').value = state.doc.client.phone || '';
             
             if (state.doc.logo) $('logo-preview').src = state.doc.logo;
 
@@ -225,17 +319,25 @@
                 row.className = 'line-item-grid group';
                 const total = item.qty * item.rate;
                 row.innerHTML = `
-                    <div class="relative"><input type="text" value="${item.desc}" onchange="updateItem(${item.id}, 'desc', this.value)" class="w-full border-b border-gray-100 outline-none py-1 text-sm font-medium" placeholder="Description"></div>
-                    <div><input type="number" value="${item.qty}" onchange="updateItem(${item.id}, 'qty', this.value)" class="w-full text-center border-b border-gray-100 outline-none py-1 text-sm"></div>
-                    <div><input type="number" value="${item.rate}" onchange="updateItem(${item.id}, 'rate', this.value)" class="w-full text-right border-b border-gray-100 outline-none py-1 text-sm"></div>
+                    <input type="text" value="${item.desc}" onchange="updateItem(${item.id}, 'desc', this.value)" class="w-full border-b border-gray-100 outline-none py-1 text-sm font-medium">
+                    <input type="number" value="${item.qty}" onchange="updateItem(${item.id}, 'qty', this.value)" class="w-full text-center border-b border-gray-100 outline-none py-1 text-sm">
+                    <input type="number" value="${item.rate}" onchange="updateItem(${item.id}, 'rate', this.value)" class="w-full text-right border-b border-gray-100 outline-none py-1 text-sm">
                     <div class="text-right py-1 font-bold text-sm text-gray-700">R ${total.toFixed(2)}</div>
-                    <div class="flex justify-end print:hidden"><button onclick="removeItem(${item.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+                    <button onclick="removeItem(${item.id})" class="text-gray-300 hover:text-red-500 flex justify-end"><i data-lucide="x" class="h-4 w-4"></i></button>
                 `;
                 container.appendChild(row);
             });
 
-            calcTotals();
-            renderHistory();
+            const sub = state.doc.items.reduce((acc, i) => acc + (i.qty * i.rate), 0);
+            $('total-amount').textContent = `R ${sub.toFixed(2)}`;
+            
+            $('saved-list').innerHTML = state.history.map((doc, idx) => `
+                <div class="p-2 border-b flex justify-between items-center text-xs">
+                    <span>${doc.number || 'No #'} - ${doc.client.name || 'No Client'}</span>
+                    <button onclick="loadDoc(${idx})" class="text-indigo-600 font-bold">Load</button>
+                </div>
+            `).join('');
+            
             lucide.createIcons();
         }
 
@@ -243,21 +345,13 @@
             const item = state.doc.items.find(i => i.id === id);
             if (item) {
                 item[field] = field === 'desc' ? value : parseFloat(value || 0);
-                calcTotals();
-            }
-        }
-
-        function removeItem(id) {
-            if (state.doc.items.length > 1) {
-                state.doc.items = state.doc.items.filter(i => i.id !== id);
                 render();
             }
         }
 
-        function calcTotals() {
-            const sub = state.doc.items.reduce((acc, i) => acc + (i.qty * i.rate), 0);
-            $('subtotal-amount').textContent = `R ${sub.toFixed(2)}`;
-            $('total-amount').textContent = `R ${sub.toFixed(2)}`;
+        function removeItem(id) {
+            state.doc.items = state.doc.items.filter(i => i.id !== id);
+            render();
         }
 
         $('add-item-btn').onclick = () => {
@@ -266,165 +360,29 @@
         };
 
         function createNewDoc(type) {
-            state.counters[type]++;
-            const prefix = type === 'Invoice' ? 'INV' : type === 'Purchase Order' ? 'PO' : 'DN';
             state.doc.type = type;
-            state.doc.number = `${prefix}-${String(state.counters[type]).padStart(4, '0')}`;
             state.doc.items = [{ id: Date.now(), desc: '', qty: 1, rate: 0 }];
-            localStorage.setItem('signly_counters', JSON.stringify(state.counters));
             render();
         }
 
-        $('import-po-btn').onclick = () => $('po-upload-input').click();
-        
-        $('po-upload-input').onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                
-                let allItems = [];
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    
-                    // SMART GRID RECONSTRUCTION
-                    // We sort items by Y coordinate (top to bottom) then X coordinate (left to right)
-                    const items = textContent.items.map(item => ({
-                        text: item.str.trim(),
-                        x: item.transform[4],
-                        y: item.transform[5],
-                        width: item.width
-                    })).filter(item => item.text.length > 0);
-
-                    // Group by approximate Y (vertical) coordinate
-                    const tolerance = 5; 
-                    const rows = [];
-                    items.forEach(item => {
-                        let foundRow = rows.find(r => Math.abs(r.y - item.y) < tolerance);
-                        if (foundRow) {
-                            foundRow.cells.push(item);
-                        } else {
-                            rows.push({ y: item.y, cells: [item] });
-                        }
-                    });
-
-                    // Sort rows by Y (descending because PDF Y is from bottom)
-                    rows.sort((a, b) => b.y - a.y);
-                    
-                    // Inside each row, sort cells by X
-                    rows.forEach(r => r.cells.sort((a, b) => a.x - b.x));
-
-                    // Convert rows to strings for easier processing
-                    const rowStrings = rows.map(r => r.cells.map(c => c.text).join("  "));
-                    
-                    // DEBUG output
-                    $('debug-console').classList.remove('hidden');
-                    $('debug-text').innerHTML += `<p>-- PAGE ${i} --</p>` + rowStrings.map(s => `<div>${s}</div>`).join('');
-
-                    // 1. Context extraction (PO #, Client)
-                    const fullText = rowStrings.join("\n");
-                    const poMatch = fullText.match(/(?:PO|Order|Ref|Number)\s*#?\s*:?\s*([A-Z0-9-]{3,})/i);
-                    if (poMatch && !state.doc.number) state.doc.number = "INV-REF-" + poMatch[1];
-                    
-                    const clientMatch = fullText.match(/(?:Bill To|Customer|Ship To|Buyer|To):\s*([^\n\r]+)/i);
-                    if (clientMatch && !state.doc.client.name) state.doc.client.name = clientMatch[1].trim();
-
-                    // 2. Line Item Extraction from sorted Rows
-                    rows.forEach(r => {
-                        const cellTexts = r.cells.map(c => c.text);
-                        const rowStr = cellTexts.join(" ");
-
-                        // HEURISTIC: A row with an item usually has 1-2 descriptions and 2-3 numbers
-                        // Example: ["Service A", "10", "R", "150.00", "1500.00"]
-                        const numbers = cellTexts.filter(t => /^[0-9,.]+$/.test(t.replace(/[R\$£,]/g, '')));
-                        
-                        if (numbers.length >= 2) {
-                            // Find which cell is likely the description (usually the first long text)
-                            const desc = cellTexts.find(t => t.length > 3 && !/^[0-9R\$£,.]+$/.test(t)) || cellTexts[0];
-                            
-                            // Prevent header rows
-                            if (/description|qty|rate|amount|total|price|vat|tax|subtotal|date/i.test(desc)) return;
-
-                            const qty = parseFloat(numbers[0].replace(/,/g, ''));
-                            const rate = parseFloat(numbers[numbers.length - 2].replace(/,/g, '')); // second to last number is usually rate
-
-                            if (!isNaN(qty) && !isNaN(rate) && rate > 0) {
-                                allItems.push({
-                                    id: Date.now() + Math.random(),
-                                    desc: desc,
-                                    qty: qty,
-                                    rate: rate
-                                });
-                            }
-                        }
-                    });
-                }
-
-                if (allItems.length > 0) {
-                    state.doc.items = allItems;
-                    alert(`Import Success! Found ${allItems.length} items.`);
-                } else {
-                    alert("Grid-based parsing failed. Attempting deep text scan...");
-                    // Last resort raw scan
-                    const rawLines = $('debug-text').innerText.split('\n');
-                    rawLines.forEach(line => {
-                        const m = line.match(/(.+?)\s+(\d+)\s+R?\s*([0-9,.]+)/i);
-                        if (m && !/total|date|sub/i.test(m[1])) {
-                             allItems.push({
-                                id: Date.now() + Math.random(),
-                                desc: m[1].trim(),
-                                qty: parseFloat(m[2]),
-                                rate: parseFloat(m[3].replace(/,/g, ''))
-                            });
-                        }
-                    });
-                    if (allItems.length > 0) {
-                        state.doc.items = allItems;
-                        render();
-                    } else {
-                        alert("The file doesn't seem to contain a standard text-based table. If it's a scan, please try a digital version.");
-                    }
-                }
-                render();
-            } catch (err) {
-                console.error(err);
-                alert("Critical error during PDF processing.");
-            }
-        };
-
         $('save-document-btn').onclick = () => {
-            state.doc.number = $('document-number-input').value;
             state.doc.company.name = $('company-name-input').value;
             state.doc.company.address = $('company-address-input').value;
             state.doc.company.phone = $('company-phone-input').value;
-            state.doc.company.email = $('company-email-input').value;
             state.doc.company.acc = $('account-number-input').value;
+            state.doc.company.bank = $('bank-name-input').value;
+            
             state.doc.client.name = $('client-name-input').value;
             state.doc.client.address = $('client-address-input').value;
-            state.doc.client.email = $('client-email-input').value;
+            state.doc.client.phone = $('client-phone-input').value;
+            
+            state.doc.number = $('document-number-input').value;
 
-            const entry = JSON.parse(JSON.stringify(state.doc));
-            entry.savedAt = new Date().toLocaleString();
-            state.history.unshift(entry);
+            state.history.unshift(JSON.parse(JSON.stringify(state.doc)));
             localStorage.setItem('signly_history', JSON.stringify(state.history));
-            renderHistory();
-            alert('Document saved!');
+            render();
+            alert("Saved!");
         };
-
-        function renderHistory() {
-            $('saved-list').innerHTML = state.history.map((doc, idx) => `
-                <div class="p-2 border-b flex justify-between items-center text-xs hover:bg-gray-50">
-                    <div class="flex flex-col">
-                        <span class="font-bold">${doc.type} ${doc.number}</span>
-                        <span class="text-[10px] text-gray-400">${doc.savedAt}</span>
-                    </div>
-                    <button onclick="loadDoc(${idx})" class="text-indigo-600 font-bold px-2 py-1 rounded hover:bg-indigo-50">Load</button>
-                </div>
-            `).join('');
-        }
 
         function loadDoc(idx) {
             state.doc = JSON.parse(JSON.stringify(state.history[idx]));
@@ -432,34 +390,15 @@
             $('saved-documents-container').classList.add('hidden');
         }
 
-        $('toggle-saved-list-btn').onclick = () => {
-            $('saved-documents-container').classList.toggle('hidden');
-        };
-
-        function clearAllSaved() {
-            if(confirm("Clear all history?")) {
-                state.history = [];
-                localStorage.setItem('signly_history', '[]');
-                renderHistory();
-            }
-        }
+        $('toggle-saved-list-btn').onclick = () => $('saved-documents-container').classList.toggle('hidden');
 
         $('export-pdf-btn').onclick = () => {
-            const element = $('invoice-container');
-            const opt = {
-                margin: 0,
+            html2pdf().from($('invoice-container')).set({
+                margin: 5,
                 filename: `${state.doc.type}_${state.doc.number}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
+                html2canvas: { scale: 2 },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            html2pdf().set(opt).from(element).save();
-        };
-
-        $('logo-upload').onchange = (e) => {
-            const reader = new FileReader();
-            reader.onload = (re) => { state.doc.logo = re.target.result; render(); };
-            reader.readAsDataURL(e.target.files[0]);
+            }).save();
         };
 
         window.onload = render;
