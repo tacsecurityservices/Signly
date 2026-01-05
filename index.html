@@ -3,705 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signly</title>
-    <!-- Favicon placeholder using inline SVG for a cleaner look -->
+    <title>Signly | Document Generator</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%234F46E5%22 /><text x=%2250%22 y=%2275%22 font-size=%2250%22 font-family=%22sans-serif%22 font-weight=%22bold%22 text-anchor=%22middle%22 fill=%22%23FFFFFF%22>S</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- We use html2pdf.js to handle the PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- Lucide icons for a cleaner UI -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Styles specifically for printing to PDF */
+        body { font-family: 'Inter', sans-serif; }
         @media print {
-            body {
-                -webkit-print-color-adjust: exact;
-            }
-            /* Hide UI elements that shouldn't be in the PDF */
-            .print\:hidden,
-            #upload-controls,
-            .remove-item-btn,
-            .toggle-amount-lock-btn {
-                display: none !important;
-            }
-            .invoice-container {
-                /* Removed border and box-shadow for printing */
-                box-shadow: none !important;
-                border: none !important;
-                padding: 0;
-                margin: 0;
-                font-size: 12px; /* Smaller base font for the PDF */
-            }
-            h2.text-4xl {
-                font-size: 24px; /* Adjusting heading size for PDF */
-            }
-            input, textarea {
-                border: none !important;
-                outline: none !important;
-                background-color: transparent !important;
-                padding: 0 !important;
-            }
-            .signature-line {
-                border-bottom: 1px solid #000 !important;
-            }
-            /* Adjusting spacing and fonts for a compact PDF layout */
-            .mb-10 { margin-bottom: 2rem !important; }
-            .mb-8 { margin-bottom: 1.5rem !important; }
-            .mb-4 { margin-bottom: 1rem !important; }
-            .mb-2 { margin-bottom: 0.5rem !important; }
-            .py-2 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
-            .text-sm { font-size: 12px !important; }
-            .text-xs { font-size: 10px !important; }
-            #invoice-container input, #invoice-container textarea {
-                font-size: 12px !important;
-                line-height: 1.2 !important;
-                min-height: 1.2rem !important;
-            }
-            #line-items-container .flex {
-                gap: 0.5rem;
-            }
+            body { -webkit-print-color-adjust: exact; background-color: white !important; }
+            .print\:hidden { display: none !important; }
+            .invoice-container { box-shadow: none !important; border: none !important; padding: 0; margin: 0; }
+            .signature-line { border-bottom: 2px solid #000 !important; }
+            input, textarea { border: none !important; outline: none !important; background: transparent !important; }
         }
+        .line-item-grid { display: grid; grid-template-columns: 1fr 80px 120px 120px 40px; gap: 12px; align-items: end; }
+        @media (max-width: 768px) { .line-item-grid { grid-template-columns: 1fr; gap: 8px; } }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen font-sans antialiased text-gray-800">
+<body class="bg-gray-50 min-h-screen antialiased text-gray-800 pb-20">
 
-    <div class="container mx-auto p-4 md:p-8">
+    <div class="container mx-auto p-4 md:p-8 max-w-5xl">
         <header class="flex flex-col md:flex-row items-center justify-between mb-8 print:hidden">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 md:mb-0">Signly</h1>
-            <div class="flex flex-wrap items-center justify-center gap-2">
-                <button id="new-invoice-btn" class="flex-1 min-w-[120px] items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    <i data-lucide="file-text" class="h-5 w-5"></i>
-                    <span>Invoice</span>
+            <div class="flex items-center gap-3 mb-4 md:mb-0">
+                <div class="bg-indigo-600 p-2 rounded-lg">
+                    <i data-lucide="shield-check" class="text-white h-8 w-8"></i>
+                </div>
+                <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">Signly</h1>
+            </div>
+            
+            <div class="flex flex-wrap gap-2 justify-center">
+                <button onclick="createNewDoc('Invoice')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-all font-medium">
+                    <i data-lucide="file-text" class="h-4 w-4"></i> Invoice
                 </button>
-                <button id="new-po-btn" class="flex-1 min-w-[120px] items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    <i data-lucide="file-plus" class="h-5 w-5"></i>
-                    <span>PO</span>
+                <button onclick="createNewDoc('Purchase Order')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-all font-medium">
+                    <i data-lucide="shopping-cart" class="h-4 w-4"></i> PO
                 </button>
-                <button id="new-dn-btn" class="flex-1 min-w-[120px] items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    <i data-lucide="package" class="h-5 w-5"></i>
-                    <span>DN</span>
+                <button onclick="createNewDoc('Delivery Note')" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-all font-medium">
+                    <i data-lucide="package" class="h-4 w-4"></i> DN
                 </button>
             </div>
         </header>
 
-        <!-- Action Buttons -->
-        <div class="flex flex-wrap gap-2 justify-center mb-8 print:hidden">
-            <button id="toggle-saved-list-btn" class="flex-1 min-w-[150px] items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200">
-                <span>View Saved Documents</span>
+        <div class="flex flex-wrap gap-3 justify-center mb-8 print:hidden">
+            <button id="import-po-btn" class="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl shadow-md hover:bg-purple-700 transition-all">
+                <i data-lucide="file-up" class="h-5 w-5"></i>
+                <span>Import PO PDF</span>
             </button>
-            <button id="save-document-btn" class="flex-1 min-w-[150px] items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">
+            <button id="toggle-saved-list-btn" class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all">
+                <i data-lucide="layers" class="h-5 w-5"></i>
+                <span>Saved Docs</span>
+            </button>
+            <button id="save-document-btn" class="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl shadow-md hover:bg-emerald-700 transition-all">
                 <i data-lucide="save" class="h-5 w-5"></i>
-                <span>Save Document</span>
+                <span>Save Current</span>
             </button>
-            <button id="export-pdf-btn" class="flex-1 min-w-[150px] items-center justify-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-200">
-                <i data-lucide="file-down" class="h-5 w-5"></i>
-                <span>Download</span>
+            <button id="export-pdf-btn" class="flex items-center gap-2 px-5 py-2.5 bg-gray-800 text-white rounded-xl shadow-md hover:bg-black transition-all">
+                <i data-lucide="download" class="h-5 w-5"></i>
+                <span>Download PDF</span>
             </button>
-        </div>
-        
-        <!-- Saved Documents List -->
-        <div id="saved-documents-container" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 mb-8 print:hidden hidden">
-            <h2 class="text-2xl font-bold text-gray-900 mb-4">Saved Documents</h2>
-            <div id="saved-list">
-                <p class="text-gray-500">No documents saved yet.</p>
-            </div>
         </div>
 
-        <!-- Invoice Container -->
-        <div id="invoice-container" class="bg-white p-6 md:p-12 rounded-xl shadow-lg border border-gray-200">
-            <!-- Header Section -->
-            <div class="flex flex-col md:flex-row justify-between items-start mb-10">
-                <div class="mb-6 md:mb-0">
-                    <!-- A container for the logo and its upload controls -->
-                    <div id="logo-section">
-                        <!-- Added an attribute to easily identify the placeholder image -->
-                        <img id="logo-preview" data-placeholder src="https://placehold.co/192x96/e5e7eb/6b7280?text=Upload+Logo" alt="Business Logo" class="w-full sm:w-auto max-w-[192px] h-auto max-h-24 object-contain mb-4 rounded-md" />
-                        <!-- Logo upload input, hidden on print -->
-                        <div id="upload-controls" class="print:hidden">
-                            <label for="logo-upload" class="block text-sm font-medium text-gray-700 mb-1">Upload Logo</label>
-                            <input
-                                type="file"
-                                id="logo-upload"
-                                accept="image/*"
-                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 cursor-pointer"
-                            />
+        <input type="file" id="po-upload-input" accept="application/pdf" class="hidden" />
+
+        <div id="saved-documents-container" class="bg-white p-6 rounded-2xl shadow-xl border border-gray-200 mb-8 print:hidden hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Recent Documents</h2>
+                <button onclick="clearAllSaved()" class="text-red-500 text-sm hover:underline">Clear History</button>
+            </div>
+            <div id="saved-list" class="space-y-2 max-h-64 overflow-y-auto pr-2"></div>
+        </div>
+
+        <!-- Debug Console (Hidden by default, useful if import fails) -->
+        <div id="debug-console" class="hidden bg-black text-green-400 p-4 rounded-lg mb-8 text-xs font-mono max-h-40 overflow-auto">
+            <p>-- PDF PARSE DEBUG --</p>
+            <div id="debug-text"></div>
+        </div>
+
+        <div id="invoice-container" class="bg-white p-8 md:p-16 rounded-2xl shadow-2xl border border-gray-100 invoice-container">
+            <div class="flex flex-col md:flex-row justify-between mb-12 gap-8">
+                <div class="w-full md:w-1/3">
+                    <div id="logo-section" class="relative group cursor-pointer border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-indigo-400 transition-all">
+                        <img id="logo-preview" src="https://placehold.co/200x80/f8fafc/64748b?text=Your+Logo" class="max-h-24 w-auto object-contain mb-2" />
+                        <p class="text-xs text-gray-400 text-center group-hover:text-indigo-500 print:hidden">Click to change logo</p>
+                        <input type="file" id="logo-upload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" />
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <h2 id="document-type-heading" class="text-5xl font-black text-indigo-700 uppercase tracking-tighter mb-2">Invoice</h2>
+                    <div class="space-y-1 text-sm font-medium text-gray-600">
+                        <div class="flex justify-end items-center gap-2">
+                            <span id="document-number-label">INV #</span>
+                            <input type="text" id="document-number-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1" placeholder="AUTO">
+                        </div>
+                        <div class="flex justify-end items-center gap-2">
+                            <span>Date:</span>
+                            <input type="date" id="document-date-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1">
+                        </div>
+                        <div class="flex justify-end items-center gap-2" id="due-date-container">
+                            <span>Due Date:</span>
+                            <input type="date" id="due-date-input" class="w-32 text-right border-b border-gray-200 focus:border-indigo-500 outline-none pb-1">
                         </div>
                     </div>
                 </div>
-                <div class="text-right flex-grow">
-                    <h2 id="document-type-heading" class="text-4xl font-extrabold text-indigo-700 uppercase">Invoice</h2>
-                    <div class="mt-2 text-sm text-gray-500">
-                        <p id="document-number-label">Invoice # <input type="text" id="document-number-input" class="w-32 inline-block bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1" /></p>
-                        <p>Date: <input type="date" id="document-date-input" class="w-32 inline-block bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1" /></p>
-                        <p>Due Date: <input type="date" id="due-date-input" class="w-32 inline-block bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1" /></p>
-                    </div>
-                </div>
             </div>
 
-            <!-- Business and Client Details -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">From:</h3>
-                    <div class="flex flex-col space-y-1">
-                        <input type="text" id="company-name-input" class="font-bold bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-base" />
-                        <textarea id="company-address-input" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm resize-none" rows="2"></textarea>
-                        <input type="text" id="company-phone-input" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm" />
-                        <input type="text" id="company-email-input" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm" />
-                     <input type="text" id="company-account-input" placeholder="Account Number" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm" />
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">From</h3>
+                    <div class="flex flex-col space-y-2">
+                        <input type="text" id="company-name-input" placeholder="Your Business Name" class="text-lg font-bold outline-none border-b border-transparent focus:border-gray-200">
+                        <textarea id="company-address-input" placeholder="Address line 1&#10;City, Postcode" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200 resize-none" rows="2"></textarea>
+                        <input type="text" id="company-phone-input" placeholder="Contact Number" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200">
+                        <input type="text" id="company-email-input" placeholder="Email Address" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200">
+                        <div class="flex items-center gap-2 pt-2 border-t border-gray-50 mt-1">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase">Acc #:</span>
+                            <input type="text" id="account-number-input" placeholder="Bank Account Number" class="text-xs font-medium text-indigo-600 outline-none bg-indigo-50/50 px-2 py-1 rounded">
+                        </div>
                     </div>
                 </div>
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">To:</h3>
-                    <div class="flex flex-col space-y-1">
-                        <input type="text" id="client-name-input" class="font-bold bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-base" />
-                        <textarea id="client-address-input" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm resize-none" rows="2"></textarea>
-                        <input type="text" id="client-email-input" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm" />
-                    <input type="text" id="company-account-input" placeholder="Account Number" class="bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1 text-sm" />
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Bill To</h3>
+                    <div class="flex flex-col space-y-2">
+                        <input type="text" id="client-name-input" placeholder="Client Name" class="text-lg font-bold outline-none border-b border-transparent focus:border-gray-200">
+                        <textarea id="client-address-input" placeholder="Client Address&#10;City, Postcode" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200 resize-none" rows="2"></textarea>
+                        <input type="text" id="client-email-input" placeholder="Client Email" class="text-sm text-gray-600 outline-none border-b border-transparent focus:border-gray-200">
                     </div>
                 </div>
             </div>
 
-            <!-- Line Items Table -->
-            <div class="mb-10">
-                <!-- Table Header - Visible on medium screens and up -->
-                <div class="hidden md:flex items-center text-sm font-semibold text-gray-600 uppercase mb-2">
-                    <div class="w-1/2">Description</div>
-                    <div class="w-1/6 text-center">Quantity</div>
-                    <div class="w-1/6 text-right">Rate</div>
-                    <div class="w-1/6 text-right">Amount</div>
-                    <div class="w-6 print:hidden"></div>
-                </div>
-                <!-- The container for line items. The items themselves will handle their own responsiveness. -->
-                <div id="line-items-container">
-                    <!-- Line items will be injected here -->
-                </div>
-                <div class="print:hidden mt-4">
-                    <button id="add-item-btn" class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg shadow-sm hover:bg-gray-300 transition-colors duration-200 text-sm font-semibold">
-                        <i data-lucide="plus" class="h-4 w-4"></i>
-                        <span>Add Item</span>
-                    </button>
-                </div>
+            <div class="hidden md:grid line-item-grid border-b-2 border-gray-100 pb-2 mb-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                <div>Description</div>
+                <div class="text-center">Qty</div>
+                <div class="text-right">Rate</div>
+                <div class="text-right">Total</div>
+                <div></div>
             </div>
 
-            <!-- Totals Section -->
-            <div class="flex justify-end mt-8">
-                <div class="w-full md:w-1/2">
-                    <div class="flex justify-between border-t border-gray-200 pt-4">
-                        <span class="text-lg font-semibold text-gray-700">Subtotal:</span>
-                        <span class="text-lg font-bold text-gray-900" id="subtotal-amount">R 0.00</span>
+            <div id="line-items-container" class="space-y-4 mb-8"></div>
+
+            <button id="add-item-btn" class="print:hidden flex items-center gap-2 text-indigo-600 font-bold text-sm hover:text-indigo-800 transition-colors">
+                <i data-lucide="plus-circle" class="h-4 w-4"></i> Add Line Item
+            </button>
+
+            <div class="mt-12 flex justify-end">
+                <div class="w-full md:w-64 space-y-3">
+                    <div class="flex justify-between text-gray-600">
+                        <span>Subtotal</span>
+                        <span id="subtotal-amount">R 0.00</span>
                     </div>
-                    <div class="flex justify-between mt-2">
-                        <span class="text-xl font-bold text-indigo-700">Total:</span>
-                        <span class="text-xl font-bold text-indigo-700" id="total-amount">R 0.00</span>
+                    <div class="flex justify-between items-center text-2xl font-black text-gray-900 border-t-4 border-indigo-600 pt-3">
+                        <span>TOTAL</span>
+                        <span id="total-amount">R 0.00</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Signature Section -->
-            <div class="mt-16 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between gap-8">
-                <div class="flex-1">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">Sender's Signature</p>
-                    <div class="signature-line w-full h-px bg-gray-300 mb-10"></div>
-                    <input type="text" placeholder="Print Name" class="w-full text-sm bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1" />
+            <div class="mt-20 grid grid-cols-1 md:grid-cols-2 gap-16">
+                <div>
+                    <div class="signature-line w-full h-1 bg-gray-200 mb-4"></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Authorized Signature</p>
                 </div>
-                <div class="flex-1">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">Receiver's Signature</p>
-                    <div class="signature-line w-full h-px bg-gray-300 mb-10"></div>
-                    <input type="text" placeholder="Print Name" class="w-full text-sm bg-transparent border-b border-gray-300 focus:outline-none focus:border-indigo-500 p-1" />
+                <div>
+                    <div class="signature-line w-full h-1 bg-gray-200 mb-4"></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Client Acknowledgement</p>
                 </div>
             </div>
+
+            <footer class="mt-20 pt-8 border-t border-gray-100 text-center text-[10px] text-gray-400 uppercase tracking-[0.2em]">
+                &copy; 2025 Tac Cyberservices | Signly Global Documents
+            </footer>
         </div>
     </div>
-    
-    <!-- Footer Section -->
-    <footer class="bg-gray-200 p-4 mt-8 text-center text-sm text-gray-600 print:hidden">
-        <p>&copy; 2025 Developed By Tac Cyberservices | Signly. All Rights Reserved.</p>
-    </footer>
 
     <script>
-        // Use lucide-icons for a clean look
-        lucide.createIcons();
-
-        // DOM elements
-        const documentTypeHeading = document.getElementById('document-type-heading');
-        const documentNumberLabel = document.getElementById('document-number-label');
-        const documentNumberInput = document.getElementById('document-number-input');
-        const documentDateInput = document.getElementById('document-date-input');
-        const dueDateInput = document.getElementById('due-date-input');
-        const companyNameInput = document.getElementById('company-name-input');
-        const companyAddressInput = document.getElementById('company-address-input');
-        const companyPhoneInput = document.getElementById('company-phone-input');
-        const companyEmailInput = document.getElementById('company-email-input');
-        const clientNameInput = document.getElementById('client-name-input');
-        const clientAddressInput = document.getElementById('client-address-input');
-        const clientEmailInput = document.getElementById('client-email-input');
-        const logoUploadInput = document.getElementById('logo-upload');
-        const logoPreview = document.getElementById('logo-preview');
-        const uploadControls = document.getElementById('upload-controls');
-        const lineItemsContainer = document.getElementById('line-items-container');
-        const subtotalAmount = document.getElementById('subtotal-amount');
-        const totalAmount = document.getElementById('total-amount');
-        const toggleSavedListBtn = document.getElementById('toggle-saved-list-btn');
-        const savedDocumentsContainer = document.getElementById('saved-documents-container');
-        const savedList = document.getElementById('saved-list');
-        const exportPdfBtn = document.getElementById('export-pdf-btn');
-        const PLACEHOLDER_LOGO_URL = 'https://placehold.co/192x96/e5e7eb/6b7280?text=Upload+Logo';
-
-        // State variables
-        let invoice = {
-            documentType: 'Invoice',
-            documentNumber: '',
-            documentDate: new Date().toISOString().substring(0, 10),
-            dueDate: '',
-            companyName: 'Your Business Name',
-            companyAddress: '123 Business St, City, State 12345',
-            companyPhone: '123-456-7890',
-            companyEmail: 'info@yourbusiness.com',
-            clientName: 'Client Name',
-            clientAddress: '456 Client Ave, City, State 67890',
-            clientEmail: 'client@email.com',
-            // Added isManualAmount and amount properties to each line item
-            items: [{ id: Date.now(), description: '', quantity: 1, rate: 0, amount: 0, isManualAmount: false }],
-            subtotal: 0,
-            total: 0,
-            logoUrl: null,
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        let state = {
+            doc: {
+                type: 'Invoice',
+                number: '',
+                date: new Date().toISOString().split('T')[0],
+                dueDate: '',
+                company: { name: '', address: '', phone: '', email: '', acc: '' },
+                client: { name: '', address: '', email: '' },
+                items: [{ id: Date.now(), desc: '', qty: 1, rate: 0 }],
+                logo: null
+            },
+            history: JSON.parse(localStorage.getItem('signly_history') || '[]'),
+            counters: JSON.parse(localStorage.getItem('signly_counters') || '{"Invoice": 0, "Purchase Order": 0, "Delivery Note": 0}')
         };
 
-        let savedDocuments = [];
-        let documentCounters = {
-            'Invoice': 0,
-            'Purchase Order': 0,
-            'Delivery Note': 0
-        };
+        const $ = (id) => document.getElementById(id);
+        const container = $('line-items-container');
 
-        // --- Document and Data Management Functions ---
+        function render() {
+            $('document-type-heading').textContent = state.doc.type;
+            $('document-number-label').textContent = `${state.doc.type === 'Invoice' ? 'INV' : state.doc.type === 'Purchase Order' ? 'PO' : 'DN'} #`;
+            $('document-number-input').value = state.doc.number;
+            $('document-date-input').value = state.doc.date;
+            $('due-date-input').value = state.doc.dueDate;
+            $('company-name-input').value = state.doc.company.name;
+            $('company-address-input').value = state.doc.company.address;
+            $('company-phone-input').value = state.doc.company.phone;
+            $('company-email-input').value = state.doc.company.email;
+            $('account-number-input').value = state.doc.company.acc || '';
+            $('client-name-input').value = state.doc.client.name;
+            $('client-address-input').value = state.doc.client.address;
+            $('client-email-input').value = state.doc.client.email;
+            
+            if (state.doc.logo) $('logo-preview').src = state.doc.logo;
 
-        // Function to generate a chronological document number
-        const generateDocumentNumber = (type) => {
-            const prefixes = {
-                'Invoice': 'INV-',
-                'Purchase Order': 'PO-',
-                'Delivery Note': 'DN-'
-            };
-            const prefix = prefixes[type];
-            documentCounters[type]++;
-            // Save the updated counters to local storage
-            localStorage.setItem('documentCounters', JSON.stringify(documentCounters));
-            return prefix + String(documentCounters[type]).padStart(4, '0');
-        };
-
-        // Function to render the line items in the table
-        const renderLineItems = () => {
-            lineItemsContainer.innerHTML = '';
-            invoice.items.forEach(item => {
-                const itemAmount = item.isManualAmount ? item.amount : (item.quantity * item.rate);
-                const itemDiv = document.createElement('div');
-                // The main change for mobile: use flex-col on small screens, then revert to flex-row on larger screens
-                itemDiv.className = 'flex flex-col md:flex-row items-stretch md:items-center border-b border-gray-200 py-2 gap-2';
-                itemDiv.innerHTML = `
-                    <div class="md:w-1/2 w-full pr-2">
-                        <label class="md:hidden block text-xs font-semibold text-gray-500 uppercase mb-1">Description</label>
-                        <input type="text" value="${item.description}" class="w-full bg-transparent border-b border-gray-200 focus:outline-none focus:border-indigo-500 p-1 text-sm" placeholder="Item description" data-id="${item.id}" data-field="description" />
-                    </div>
-                    <div class="flex items-center gap-2 w-full md:w-auto">
-                        <div class="w-1/2 md:w-1/3">
-                            <label class="md:hidden block text-xs font-semibold text-gray-500 uppercase mb-1">Qty</label>
-                            <input type="number" value="${item.quantity}" class="w-full text-center bg-transparent border-b border-gray-200 focus:outline-none focus:border-indigo-500 p-1 text-sm" data-id="${item.id}" data-field="quantity" />
-                        </div>
-                        <div class="w-1/2 md:w-1/3">
-                            <label class="md:hidden block text-xs font-semibold text-gray-500 uppercase mb-1">Rate</label>
-                            <input type="number" value="${item.rate}" class="w-full text-right bg-transparent border-b border-gray-200 focus:outline-none focus:border-indigo-500 p-1 text-sm" data-id="${item.id}" data-field="rate" />
-                        </div>
-                        <!-- New manual amount field and toggle button -->
-                        <div class="flex-1 w-full md:w-1/3 flex items-center gap-1">
-                            <label class="md:hidden block text-xs font-semibold text-gray-500 uppercase mb-1 flex-1">Amount</label>
-                            <input type="number" 
-                                value="${itemAmount.toFixed(2)}" 
-                                class="flex-1 w-full text-right bg-transparent border-b border-gray-200 focus:outline-none focus:border-indigo-500 p-1 text-sm ${!item.isManualAmount ? 'bg-gray-50 cursor-not-allowed' : ''}" 
-                                data-id="${item.id}" 
-                                data-field="amount" 
-                                ${!item.isManualAmount ? 'readonly' : ''}
-                            />
-                            <button class="toggle-amount-lock-btn text-gray-500 hover:text-indigo-600 transition-colors shrink-0" data-id="${item.id}">
-                                <i data-lucide="${item.isManualAmount ? 'lock' : 'calculator'}" class="h-4 w-4"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="md:w-6 flex justify-center self-center md:self-auto print:hidden">
-                        <button class="text-red-500 hover:text-red-700 transition-colors remove-item-btn" data-id="${item.id}">
-                            <i data-lucide="trash-2" class="h-4 w-4"></i>
-                        </button>
-                    </div>
+            container.innerHTML = '';
+            state.doc.items.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'line-item-grid group';
+                const total = item.qty * item.rate;
+                row.innerHTML = `
+                    <div class="relative"><input type="text" value="${item.desc}" onchange="updateItem(${item.id}, 'desc', this.value)" class="w-full border-b border-gray-100 outline-none py-1 text-sm font-medium" placeholder="Description"></div>
+                    <div><input type="number" value="${item.qty}" onchange="updateItem(${item.id}, 'qty', this.value)" class="w-full text-center border-b border-gray-100 outline-none py-1 text-sm"></div>
+                    <div><input type="number" value="${item.rate}" onchange="updateItem(${item.id}, 'rate', this.value)" class="w-full text-right border-b border-gray-100 outline-none py-1 text-sm"></div>
+                    <div class="text-right py-1 font-bold text-sm text-gray-700">R ${total.toFixed(2)}</div>
+                    <div class="flex justify-end print:hidden"><button onclick="removeItem(${item.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="x" class="h-4 w-4"></i></button></div>
                 `;
-                lineItemsContainer.appendChild(itemDiv);
+                container.appendChild(row);
             });
+
+            calcTotals();
+            renderHistory();
             lucide.createIcons();
-            addRemoveItemListeners();
-            addItemChangeListeners();
-            addToggleAmountLockListeners();
+        }
+
+        function updateItem(id, field, value) {
+            const item = state.doc.items.find(i => i.id === id);
+            if (item) {
+                item[field] = field === 'desc' ? value : parseFloat(value || 0);
+                calcTotals();
+            }
+        }
+
+        function removeItem(id) {
+            if (state.doc.items.length > 1) {
+                state.doc.items = state.doc.items.filter(i => i.id !== id);
+                render();
+            }
+        }
+
+        function calcTotals() {
+            const sub = state.doc.items.reduce((acc, i) => acc + (i.qty * i.rate), 0);
+            $('subtotal-amount').textContent = `R ${sub.toFixed(2)}`;
+            $('total-amount').textContent = `R ${sub.toFixed(2)}`;
+        }
+
+        $('add-item-btn').onclick = () => {
+            state.doc.items.push({ id: Date.now(), desc: '', qty: 1, rate: 0 });
+            render();
         };
 
-        // Function to calculate and update totals
-        const updateTotals = () => {
-            const newSubtotal = invoice.items.reduce((acc, item) => {
-                const itemAmount = item.isManualAmount ? item.amount : (item.quantity * item.rate);
-                return acc + (parseFloat(itemAmount) || 0);
-            }, 0);
-            invoice.subtotal = newSubtotal;
-            invoice.total = newSubtotal;
-            subtotalAmount.textContent = `R ${newSubtotal.toFixed(2)}`;
-            totalAmount.textContent = `R ${newSubtotal.toFixed(2)}`;
-            saveToLocalStorage();
-        };
+        function createNewDoc(type) {
+            state.counters[type]++;
+            const prefix = type === 'Invoice' ? 'INV' : type === 'Purchase Order' ? 'PO' : 'DN';
+            state.doc.type = type;
+            state.doc.number = `${prefix}-${String(state.counters[type]).padStart(4, '0')}`;
+            state.doc.items = [{ id: Date.now(), desc: '', qty: 1, rate: 0 }];
+            localStorage.setItem('signly_counters', JSON.stringify(state.counters));
+            render();
+        }
 
-        // Function to update the UI from the invoice state
-        const updateUI = () => {
-            documentTypeHeading.textContent = invoice.documentType;
-            documentNumberLabel.textContent = `${invoice.documentType} #`;
-            documentNumberInput.value = invoice.documentNumber;
-            documentDateInput.value = invoice.documentDate;
-            dueDateInput.value = invoice.dueDate;
-            companyNameInput.value = invoice.companyName;
-            companyAddressInput.value = invoice.companyAddress;
-            companyPhoneInput.value = invoice.companyPhone;
-            companyEmailInput.value = invoice.companyEmail;
-            clientNameInput.value = invoice.clientName;
-            clientAddressInput.value = invoice.clientAddress;
-            clientEmailInput.value = invoice.clientEmail;
-            if (invoice.logoUrl) {
-                logoPreview.src = invoice.logoUrl;
-                logoPreview.removeAttribute('data-placeholder'); // Remove the placeholder attribute when a logo is uploaded
-                // Hide the upload controls when a logo is present
-                uploadControls.classList.add('hidden');
-            } else {
-                logoPreview.src = PLACEHOLDER_LOGO_URL;
-                logoPreview.setAttribute('data-placeholder', ''); // Add it back if no logo
-                // Show the upload controls when there is no logo
-                uploadControls.classList.remove('hidden');
-            }
-            renderLineItems();
-            updateTotals();
-        };
-
-        // Function to save current invoice and counters to local storage
-        const saveToLocalStorage = () => {
-            localStorage.setItem('currentInvoice', JSON.stringify(invoice));
-            localStorage.setItem('documentCounters', JSON.stringify(documentCounters));
-            if (invoice.logoUrl) {
-                localStorage.setItem('logoUrl', invoice.logoUrl);
-            } else {
-                localStorage.removeItem('logoUrl');
-            }
-        };
-
-        // Function to load data from local storage
-        const loadFromLocalStorage = () => {
-            const storedInvoice = JSON.parse(localStorage.getItem('currentInvoice'));
-            const storedLogoUrl = localStorage.getItem('logoUrl');
-            const storedDocuments = JSON.parse(localStorage.getItem('savedDocuments'));
-            const storedCounters = JSON.parse(localStorage.getItem('documentCounters'));
-            
-            if (storedInvoice) {
-                invoice = storedInvoice;
-            } else {
-                invoice.documentNumber = generateDocumentNumber(invoice.documentType);
-            }
-            if (storedLogoUrl) {
-                invoice.logoUrl = storedLogoUrl;
-            }
-            if (storedDocuments) {
-                savedDocuments = storedDocuments;
-            }
-            if (storedCounters) {
-                documentCounters = storedCounters;
-            }
-            updateUI();
-            renderSavedDocuments();
-        };
-
-        // --- Event Listener Functions ---
+        $('import-po-btn').onclick = () => $('po-upload-input').click();
         
-        <!-- BUG FIX: This section was updated to prevent the page from re-rendering on every keystroke. The old code caused the input field to lose focus, making it impossible to type more than one word at a time. The new code now updates the data model directly without re-rendering the entire UI. It also removes and re-adds listeners to prevent duplicates. -->
-        // Function to handle changes in line item inputs
-        const addItemChangeListeners = () => {
-            // Remove previous listeners to avoid duplicates
-            lineItemsContainer.querySelectorAll('input').forEach(input => {
-                const oldInput = input.cloneNode(true);
-                input.parentNode.replaceChild(oldInput, input);
-            });
-
-            // Add new listeners
-            lineItemsContainer.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', (e) => {
-                    const id = parseInt(e.target.dataset.id);
-                    const field = e.target.dataset.field;
-                    const value = e.target.value;
-
-                    const item = invoice.items.find(i => i.id === id);
-                    if (item) {
-                        if (field === 'description') {
-                            item[field] = value;
-                        } else if (field === 'amount') {
-                            item.isManualAmount = true;
-                            item.amount = parseFloat(value) || 0;
-                            updateTotals(); // Recalculate totals immediately for amount changes
-                        } else {
-                            item[field] = parseFloat(value) || 0;
-                            item.isManualAmount = false;
-                            updateTotals(); // Recalculate totals immediately for quantity/rate changes
-                        }
-                    }
-                    saveToLocalStorage();
-                });
-            });
-        };
-
-        // Function to handle click on remove item buttons
-        const addRemoveItemListeners = () => {
-            document.querySelectorAll('.remove-item-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const id = parseInt(e.currentTarget.dataset.id);
-                    invoice.items = invoice.items.filter(item => item.id !== id);
-                    renderLineItems();
-                    updateTotals();
-                });
-            });
-        };
-
-        // Function to handle the toggle button for manual amount editing
-        const addToggleAmountLockListeners = () => {
-            document.querySelectorAll('.toggle-amount-lock-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const id = parseInt(e.currentTarget.dataset.id);
-                    const item = invoice.items.find(i => i.id === id);
-                    if (item) {
-                        item.isManualAmount = !item.isManualAmount;
-                        // If we are reverting to auto, update the amount
-                        if (!item.isManualAmount) {
-                            item.amount = item.quantity * item.rate;
-                        }
-                        renderLineItems();
-                        updateTotals();
-                    }
-                });
-            });
-        };
-
-        // Function to render the list of saved documents
-        const renderSavedDocuments = () => {
-            savedList.innerHTML = '';
-            if (savedDocuments.length === 0) {
-                savedList.innerHTML = '<p class="text-gray-500">No documents saved yet.</p>';
-            } else {
-                const ul = document.createElement('ul');
-                ul.className = 'divide-y divide-gray-200';
-                savedDocuments.forEach((doc, index) => {
-                    const li = document.createElement('li');
-                    li.className = 'flex items-center justify-between py-2';
-                    li.innerHTML = `
-                        <span class="font-medium">${doc.documentType} # ${doc.documentNumber}</span>
-                        <span class="text-sm text-gray-500">${doc.documentDate} - Total: R ${doc.total.toFixed(2)}</span>
-                        <button class="text-indigo-600 hover:text-indigo-800 transition-colors load-doc-btn" data-index="${index}">
-                            Load
-                        </button>
-                    `;
-                    ul.appendChild(li);
-                });
-                savedList.appendChild(ul);
-                addLoadDocumentListeners();
-            }
-        };
-
-        // Function to handle loading a saved document
-        const addLoadDocumentListeners = () => {
-            document.querySelectorAll('.load-doc-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const index = parseInt(e.currentTarget.dataset.index);
-                    invoice = savedDocuments[index];
-                    updateUI();
-                    savedDocumentsContainer.classList.add('hidden');
-                    toggleSavedListBtn.querySelector('span').textContent = 'View Saved Documents';
-                });
-            });
-        };
-        
-        // --- Main Initialization and Event Handlers ---
-        
-        // Load data on page load
-        window.onload = () => {
-            loadFromLocalStorage();
-        };
-
-        document.getElementById('new-invoice-btn').addEventListener('click', () => {
-            invoice.documentType = 'Invoice';
-            invoice.documentNumber = generateDocumentNumber('Invoice');
-            invoice.items = [{ id: Date.now(), description: '', quantity: 1, rate: 0, amount: 0, isManualAmount: false }];
-            invoice.logoUrl = null;
-            updateUI();
-        });
-
-        document.getElementById('new-po-btn').addEventListener('click', () => {
-            invoice.documentType = 'Purchase Order';
-            invoice.documentNumber = generateDocumentNumber('Purchase Order');
-            invoice.items = [{ id: Date.now(), description: '', quantity: 1, rate: 0, amount: 0, isManualAmount: false }];
-            invoice.logoUrl = null;
-            updateUI();
-        });
-
-        document.getElementById('new-dn-btn').addEventListener('click', () => {
-            invoice.documentType = 'Delivery Note';
-            invoice.documentNumber = generateDocumentNumber('Delivery Note');
-            invoice.items = [{ id: Date.now(), description: '', quantity: 1, rate: 0, amount: 0, isManualAmount: false }];
-            invoice.logoUrl = null;
-            updateUI();
-        });
-
-        document.getElementById('add-item-btn').addEventListener('click', () => {
-            invoice.items.push({ id: Date.now(), description: '', quantity: 1, rate: 0, amount: 0, isManualAmount: false });
-            renderLineItems();
-            updateTotals();
-        });
-        
-        // Listener for all main form fields
-        const allFormInputs = [
-            documentNumberInput,
-            documentDateInput,
-            dueDateInput,
-            companyNameInput,
-            companyAddressInput,
-            companyPhoneInput,
-            companyEmailInput,
-            clientNameInput,
-            clientAddressInput,
-            clientEmailInput
-        ];
-
-        allFormInputs.forEach(input => {
-            input.addEventListener('input', (e) => {
-                switch(e.target.id) {
-                    case 'document-number-input':
-                        invoice.documentNumber = e.target.value;
-                        break;
-                    case 'document-date-input':
-                        invoice.documentDate = e.target.value;
-                        break;
-                    case 'due-date-input':
-                        invoice.dueDate = e.target.value;
-                        break;
-                    case 'company-name-input':
-                        invoice.companyName = e.target.value;
-                        break;
-                    case 'company-address-input':
-                        invoice.companyAddress = e.target.value;
-                        break;
-                    case 'company-phone-input':
-                        invoice.companyPhone = e.target.value;
-                        break;
-                    case 'company-email-input':
-                        invoice.companyEmail = e.target.value;
-                        break;
-                    case 'client-name-input':
-                        invoice.clientName = e.target.value;
-                        break;
-                    case 'client-address-input':
-                        invoice.clientAddress = e.target.value;
-                        break;
-                    case 'client-email-input':
-                        invoice.clientEmail = e.target.value;
-                        break;
-                }
-                saveToLocalStorage();
-            });
-        });
-
-        logoUploadInput.addEventListener('change', (e) => {
+        $('po-upload-input').onchange = async (e) => {
             const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    invoice.logoUrl = event.target.result;
-                    logoPreview.src = invoice.logoUrl;
-                    logoPreview.removeAttribute('data-placeholder');
-                    uploadControls.classList.add('hidden');
-                    saveToLocalStorage();
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+            if (!file) return;
 
-        document.getElementById('save-document-btn').addEventListener('click', () => {
-            // Check if the current document has already been saved to prevent duplicates
-            const isSaved = savedDocuments.some(doc => 
-                doc.documentType === invoice.documentType && doc.documentNumber === invoice.documentNumber
-            );
-            
-            if (!isSaved) {
-                // Create a deep copy of the current invoice object before saving
-                const newDoc = JSON.parse(JSON.stringify(invoice));
-                savedDocuments.push(newDoc);
-                localStorage.setItem('savedDocuments', JSON.stringify(savedDocuments));
-                renderSavedDocuments();
-                // Show a confirmation message (using a simple visual effect instead of alert)
-                const saveButton = document.getElementById('save-document-btn');
-                const originalText = saveButton.innerHTML;
-                saveButton.innerHTML = '<i data-lucide="check" class="h-5 w-5"></i><span>Saved!</span>';
-                saveButton.classList.remove('bg-green-500');
-                saveButton.classList.add('bg-gray-400');
-                setTimeout(() => {
-                    saveButton.innerHTML = originalText;
-                    saveButton.classList.remove('bg-gray-400');
-                    saveButton.classList.add('bg-green-500');
-                    lucide.createIcons();
-                }, 2000);
-            } else {
-                // Handle case where document is already saved
-                const saveButton = document.getElementById('save-document-btn');
-                const originalText = saveButton.innerHTML;
-                saveButton.innerHTML = '<i data-lucide="info" class="h-5 w-5"></i><span>Already Saved</span>';
-                saveButton.classList.remove('bg-green-500');
-                saveButton.classList.add('bg-orange-500');
-                setTimeout(() => {
-                    saveButton.innerHTML = originalText;
-                    saveButton.classList.remove('bg-orange-500');
-                    saveButton.classList.add('bg-green-500');
-                    lucide.createIcons();
-                }, 2000);
-            }
-        });
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                let allItems = [];
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    
+                    // SMART GRID RECONSTRUCTION
+                    // We sort items by Y coordinate (top to bottom) then X coordinate (left to right)
+                    const items = textContent.items.map(item => ({
+                        text: item.str.trim(),
+                        x: item.transform[4],
+                        y: item.transform[5],
+                        width: item.width
+                    })).filter(item => item.text.length > 0);
 
-        toggleSavedListBtn.addEventListener('click', () => {
-            const isHidden = savedDocumentsContainer.classList.toggle('hidden');
-            if (isHidden) {
-                toggleSavedListBtn.querySelector('span').textContent = 'View Saved Documents';
-            } else {
-                toggleSavedListBtn.querySelector('span').textContent = 'Hide Saved Documents';
-                renderSavedDocuments();
-            }
-        });
+                    // Group by approximate Y (vertical) coordinate
+                    const tolerance = 5; 
+                    const rows = [];
+                    items.forEach(item => {
+                        let foundRow = rows.find(r => Math.abs(r.y - item.y) < tolerance);
+                        if (foundRow) {
+                            foundRow.cells.push(item);
+                        } else {
+                            rows.push({ y: item.y, cells: [item] });
+                        }
+                    });
 
-        exportPdfBtn.addEventListener('click', () => {
-            const element = document.getElementById('invoice-container');
-            const documentTitle = `${invoice.documentType}-${invoice.documentNumber}`;
-            
-            const options = {
-                // Changed margin to 0 to remove the default border
+                    // Sort rows by Y (descending because PDF Y is from bottom)
+                    rows.sort((a, b) => b.y - a.y);
+                    
+                    // Inside each row, sort cells by X
+                    rows.forEach(r => r.cells.sort((a, b) => a.x - b.x));
+
+                    // Convert rows to strings for easier processing
+                    const rowStrings = rows.map(r => r.cells.map(c => c.text).join("  "));
+                    
+                    // DEBUG output
+                    $('debug-console').classList.remove('hidden');
+                    $('debug-text').innerHTML += `<p>-- PAGE ${i} --</p>` + rowStrings.map(s => `<div>${s}</div>`).join('');
+
+                    // 1. Context extraction (PO #, Client)
+                    const fullText = rowStrings.join("\n");
+                    const poMatch = fullText.match(/(?:PO|Order|Ref|Number)\s*#?\s*:?\s*([A-Z0-9-]{3,})/i);
+                    if (poMatch && !state.doc.number) state.doc.number = "INV-REF-" + poMatch[1];
+                    
+                    const clientMatch = fullText.match(/(?:Bill To|Customer|Ship To|Buyer|To):\s*([^\n\r]+)/i);
+                    if (clientMatch && !state.doc.client.name) state.doc.client.name = clientMatch[1].trim();
+
+                    // 2. Line Item Extraction from sorted Rows
+                    rows.forEach(r => {
+                        const cellTexts = r.cells.map(c => c.text);
+                        const rowStr = cellTexts.join(" ");
+
+                        // HEURISTIC: A row with an item usually has 1-2 descriptions and 2-3 numbers
+                        // Example: ["Service A", "10", "R", "150.00", "1500.00"]
+                        const numbers = cellTexts.filter(t => /^[0-9,.]+$/.test(t.replace(/[R\$£,]/g, '')));
+                        
+                        if (numbers.length >= 2) {
+                            // Find which cell is likely the description (usually the first long text)
+                            const desc = cellTexts.find(t => t.length > 3 && !/^[0-9R\$£,.]+$/.test(t)) || cellTexts[0];
+                            
+                            // Prevent header rows
+                            if (/description|qty|rate|amount|total|price|vat|tax|subtotal|date/i.test(desc)) return;
+
+                            const qty = parseFloat(numbers[0].replace(/,/g, ''));
+                            const rate = parseFloat(numbers[numbers.length - 2].replace(/,/g, '')); // second to last number is usually rate
+
+                            if (!isNaN(qty) && !isNaN(rate) && rate > 0) {
+                                allItems.push({
+                                    id: Date.now() + Math.random(),
+                                    desc: desc,
+                                    qty: qty,
+                                    rate: rate
+                                });
+                            }
+                        }
+                    });
+                }
+
+                if (allItems.length > 0) {
+                    state.doc.items = allItems;
+                    alert(`Import Success! Found ${allItems.length} items.`);
+                } else {
+                    alert("Grid-based parsing failed. Attempting deep text scan...");
+                    // Last resort raw scan
+                    const rawLines = $('debug-text').innerText.split('\n');
+                    rawLines.forEach(line => {
+                        const m = line.match(/(.+?)\s+(\d+)\s+R?\s*([0-9,.]+)/i);
+                        if (m && !/total|date|sub/i.test(m[1])) {
+                             allItems.push({
+                                id: Date.now() + Math.random(),
+                                desc: m[1].trim(),
+                                qty: parseFloat(m[2]),
+                                rate: parseFloat(m[3].replace(/,/g, ''))
+                            });
+                        }
+                    });
+                    if (allItems.length > 0) {
+                        state.doc.items = allItems;
+                        render();
+                    } else {
+                        alert("The file doesn't seem to contain a standard text-based table. If it's a scan, please try a digital version.");
+                    }
+                }
+                render();
+            } catch (err) {
+                console.error(err);
+                alert("Critical error during PDF processing.");
+            }
+        };
+
+        $('save-document-btn').onclick = () => {
+            state.doc.number = $('document-number-input').value;
+            state.doc.company.name = $('company-name-input').value;
+            state.doc.company.address = $('company-address-input').value;
+            state.doc.company.phone = $('company-phone-input').value;
+            state.doc.company.email = $('company-email-input').value;
+            state.doc.company.acc = $('account-number-input').value;
+            state.doc.client.name = $('client-name-input').value;
+            state.doc.client.address = $('client-address-input').value;
+            state.doc.client.email = $('client-email-input').value;
+
+            const entry = JSON.parse(JSON.stringify(state.doc));
+            entry.savedAt = new Date().toLocaleString();
+            state.history.unshift(entry);
+            localStorage.setItem('signly_history', JSON.stringify(state.history));
+            renderHistory();
+            alert('Document saved!');
+        };
+
+        function renderHistory() {
+            $('saved-list').innerHTML = state.history.map((doc, idx) => `
+                <div class="p-2 border-b flex justify-between items-center text-xs hover:bg-gray-50">
+                    <div class="flex flex-col">
+                        <span class="font-bold">${doc.type} ${doc.number}</span>
+                        <span class="text-[10px] text-gray-400">${doc.savedAt}</span>
+                    </div>
+                    <button onclick="loadDoc(${idx})" class="text-indigo-600 font-bold px-2 py-1 rounded hover:bg-indigo-50">Load</button>
+                </div>
+            `).join('');
+        }
+
+        function loadDoc(idx) {
+            state.doc = JSON.parse(JSON.stringify(state.history[idx]));
+            render();
+            $('saved-documents-container').classList.add('hidden');
+        }
+
+        $('toggle-saved-list-btn').onclick = () => {
+            $('saved-documents-container').classList.toggle('hidden');
+        };
+
+        function clearAllSaved() {
+            if(confirm("Clear all history?")) {
+                state.history = [];
+                localStorage.setItem('signly_history', '[]');
+                renderHistory();
+            }
+        }
+
+        $('export-pdf-btn').onclick = () => {
+            const element = $('invoice-container');
+            const opt = {
                 margin: 0,
-                filename: `${documentTitle}.pdf`,
+                filename: `${state.doc.type}_${state.doc.number}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
-                // Increased scale and DPI for higher resolution
-                html2canvas: { scale: 3, logging: true, dpi: 300, letterRendering: true }, 
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-                pagebreak: { avoid: ['#line-items-container'] } // Avoid breaking the line items table
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
+            html2pdf().set(opt).from(element).save();
+        };
 
-            html2pdf().from(element).set(options).save();
-        });
+        $('logo-upload').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (re) => { state.doc.logo = re.target.result; render(); };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+
+        window.onload = render;
     </script>
 </body>
 </html>
